@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AgriBuddy 3D | Live Environment Simulator</title>
+
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background: #000; }
+    
+    /* Live Video Stream pinned securely behind the 3D canvas layer */
+    #webcam-stream {
+      position: fixed;
+      right: 0; bottom: 0;
+      min-width: 100%; min-height: 100%;
+      width: auto; height: auto;
+      z-index: -2;
+      object-fit: cover;
+    }
+
+    #agribuddy-dashboard {
+      position: absolute; top: 20px; left: 20px; z-index: 1000;
+    }
+
+    .neon-card {
+      background: rgba(0, 0, 0, 0.85);
+      border: 2px solid #39FF14;
+      padding: 15px;
+      border-radius: 10px;
+      width: 270px;
+      box-shadow: 0 0 15px #39FF14;
+      color: #39FF14;
+    }
+
+    .instructions {
+      margin-top: 10px; font-size: 0.75em; color: #fff; border-top: 1px dashed #39FF14; padding-top: 8px; line-height: 1.4;
+    }
+  </style>
+
+  <script>
+    // Access the back camera on mobile devices natively
+    window.addEventListener('DOMContentLoaded', () => {
+      const video = document.getElementById('webcam-stream');
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.play();
+        })
+        .catch((err) => {
+          console.error("Camera initialization paused: ", err);
+        });
+      }
+    });
+
+    // Row-Spawning Logic (Generates unlimited parallel lines of 10 stalks)
+    AFRAME.registerComponent('row-spawner', {
+      init: function() {
+        this.rowCount = 0;
+        this.plantsPerRow = 10;
+        this.spacing = 0.30; // Clean 30cm agricultural spacing metric
+
+        this.el.addEventListener('click', (e) => {
+          const startPoint = e.detail.intersection.point;
+          this.rowCount++;
+
+          // Spawn an organized row of 10 wheat entities extending outward
+          for (let i = 0; i < this.plantsPerRow; i++) {
+            const plantOffsetZ = startPoint.z - (i * this.spacing);
+            const plantPosition = { x: startPoint.x, y: startPoint.y, z: plantOffsetZ };
+
+            const wheatStalk = document.createElement('a-entity');
+            
+            // Runs your custom asset. Falls back to a golden structural cylinder if asset hasn't downloaded
+            wheatStalk.setAttribute('gltf-model', '#wheatAsset');
+            wheatStalk.setAttribute('geometry', 'primitive: cylinder; radius: 0.015; height: 0.25');
+            wheatStalk.setAttribute('material', 'color: #DAA520; metalness: 0.1; roughness: 0.5');
+            
+            wheatStalk.setAttribute('position', plantPosition);
+            this.el.sceneEl.appendChild(wheatStalk);
+          }
+
+          // Generate target green guideline tracking row trajectory
+          const endPoint = { x: startPoint.x, y: startPoint.y, z: startPoint.z - ((this.plantsPerRow - 1) * this.spacing) };
+          const rowLine = document.createElement('a-entity');
+          rowLine.setAttribute('line', {
+            start: startPoint,
+            end: endPoint,
+            color: '#39FF14',
+            opacity: 0.9
+          });
+          this.el.sceneEl.appendChild(rowLine);
+
+          // Update Dashboard readouts live
+          document.getElementById('metrics').innerHTML = `
+            Rows Programmed: ${this.rowCount}<br>
+            Total Grid Yield: ${this.rowCount * this.plantsPerRow} Units<br>
+            Stalk Spacing: ${this.spacing}m
+          `;
+        });
+      }
+    });
+  </script>
+</head>
+
+<body>
+
+  <video id="webcam-stream" autoplay playsinline></video>
+
+  <div id="agribuddy-dashboard">
+    <div class="neon-card">
+      <div style="font-weight: bold; font-size: 1.05em; letter-spacing: 1px;">AGRIBUDDY FIELD AR</div>
+      <div id="metrics" style="margin-top: 10px; font-size: 0.85em; line-height: 1.5;">
+        Rows Programmed: 0<br>
+        Total Grid Yield: 0 Units<br>
+        Stalk Spacing: 0.30m
+      </div>
+      <div class="instructions">
+        <strong>Live Controls:</strong> Point your camera forward and tap the clear space overlay to generate a straight 10-stalk row matrix automatically.
+      </div>
+      <button onclick="location.reload()" style="background: none; border: 1px solid #39FF14; color: #39FF14; width: 100%; margin-top: 10px; padding: 6px; cursor: pointer; border-radius: 4px; font-size: 0.75em; font-family: monospace;">CLEAR ALL ROWS</button>
+    </div>
+  </div>
+
+  <a-scene cursor="rayOrigin: mouse" raycaster="objects: .field-plane" renderer="alpha: true; colorManagement: true;">
+    
+    <a-assets>
+      <a-asset-item id="wheatAsset" src="Wheat.glb"></a-asset-item>
+    </a-assets>
+
+    <a-camera position="0 1.5 2" rotation="-15 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity
+      class="field-plane"
+      geometry="primitive: plane; width: 100; height: 100"
+      rotation="-90 0 0"
+      position="0 0 0"
+      material="transparent: true; opacity: 0"
+      row-spawner>
+    </a-entity>
+
+    <a-light type="ambient" intensity="0.9"></a-light>
+    <a-light type="directional" position="1 3 1" intensity="0.4"></a-light>
+    
+  </a-scene>
+
+</body>
+</html>
